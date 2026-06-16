@@ -1,9 +1,7 @@
 import {HttpClient} from '@actions/http-client'
 import {BasicCredentialHandler} from '@actions/http-client/lib/auth'
 import {RequestOptions} from '@actions/http-client/lib/interfaces'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
+import * as https from 'https'
 
 export interface ExchangeTokenOptions {
   hostname: string
@@ -42,61 +40,48 @@ export function getTokenExpiration(token: string): string {
 export async function exchangeToken(
   options: ExchangeTokenOptions
 ): Promise<ExchangeTokenResult> {
-  let certFile: string | undefined
+  const requestOptions: RequestOptions = {}
 
-  try {
-    if (options.tlsCertificate) {
-      certFile = path.join(os.tmpdir(), `quay-ca-${Date.now()}.pem`)
-      fs.writeFileSync(certFile, options.tlsCertificate)
-      process.env.NODE_EXTRA_CA_CERTS = certFile
-    }
+  if (!options.verifySsl) {
+    requestOptions.ignoreSslError = true
+  }
 
-    const requestOptions: RequestOptions = {}
+  const credHandler = new BasicCredentialHandler(
+    options.username,
+    options.oidcToken
+  )
+  const client = new HttpClient(
+    'quay-oidc-auth-action',
+    [credHandler],
+    requestOptions
+  )
 
-    if (!options.verifySsl) {
-      requestOptions.ignoreSslError = true
-    }
+  if (options.tlsCertificate) {
+    const agent = new https.Agent({ca: options.tlsCertificate})
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(client as any)._agent = agent
+  }
 
-    const credHandler = new BasicCredentialHandler(
-      options.username,
-      options.oidcToken
+  const url = `${options.protocol}://${options.hostname}/oauth2/federation/robot/token`
+
+  const response = await client.getJson<QuayTokenResponse>(url)
+
+  if (response.statusCode !== 200) {
+    throw new Error(
+      `Quay returned HTTP ${response.statusCode}. Verify that the robot account "${options.username}" has OIDC federation configured for GitHub Actions.`
     )
-    const client = new HttpClient(
-      'quay-oidc-auth-action',
-      [credHandler],
-      requestOptions
+  }
+
+  if (!response.result?.token) {
+    throw new Error(
+      'Unexpected response from Quay: missing token field'
     )
+  }
 
-    const url = `${options.protocol}://${options.hostname}/oauth2/federation/robot/token`
+  const expiration = getTokenExpiration(response.result.token)
 
-    const response = await client.getJson<QuayTokenResponse>(url)
-
-    if (response.statusCode !== 200) {
-      throw new Error(
-        `Quay returned HTTP ${response.statusCode}. Verify that the robot account "${options.username}" has OIDC federation configured for GitHub Actions.`
-      )
-    }
-
-    if (!response.result?.token) {
-      throw new Error(
-        'Unexpected response from Quay: missing token field'
-      )
-    }
-
-    const expiration = getTokenExpiration(response.result.token)
-
-    return {
-      token: response.result.token,
-      expiration
-    }
-  } finally {
-    if (certFile) {
-      try {
-        fs.unlinkSync(certFile)
-      } catch {
-        // best-effort cleanup
-      }
-      delete process.env.NODE_EXTRA_CA_CERTS
-    }
+  return {
+    token: response.result.token,
+    expiration
   }
 }
