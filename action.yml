@@ -16,8 +16,8 @@ inputs:
     description: 'Protocol to use (http or https)'
     required: false
     default: 'https'
-  tls-certificate:
-    description: 'Custom TLS/CA certificate (PEM format) for private Quay instances'
+  tls-certificate-base64:
+    description: 'Base64-encoded custom TLS/CA certificate (PEM format) for private Quay instances'
     required: false
   verify-ssl:
     description: 'Whether to verify SSL certificates'

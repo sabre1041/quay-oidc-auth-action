@@ -6,8 +6,15 @@ export async function run(): Promise<void> {
     const hostname = core.getInput('hostname')
     const username = core.getInput('username', {required: true})
     const protocol = core.getInput('protocol')
-    const tlsCertificate = core.getInput('tls-certificate')
+    const tlsCertificateBase64 = core.getInput('tls-certificate-base64')
     const verifySsl = core.getBooleanInput('verify-ssl')
+
+    let tlsCertificate: string | undefined
+    if (tlsCertificateBase64) {
+      tlsCertificate = Buffer.from(tlsCertificateBase64, 'base64').toString(
+        'utf8'
+      )
+    }
 
     core.info('Requesting OIDC token from GitHub...')
     const oidcToken = await core.getIDToken()
@@ -18,7 +25,7 @@ export async function run(): Promise<void> {
       username,
       protocol,
       oidcToken,
-      tlsCertificate: tlsCertificate || undefined,
+      tlsCertificate,
       verifySsl
     })
 

@@ -40,7 +40,7 @@ jobs:
 
 ### Private Quay Instance
 
-A private instance of Red Hat Quay can be used by specifying the `hostname` input parameter with the hostname of the Quay instance. In addition, a TLS certificate that is not trusted by GitHub can be specified using the `tls-certificate` input parameter. The following shows how to utilize a private instance of Red Hat Quay along with the associated TLS certificate stored within a GitHub actions Secret.
+A private instance of Red Hat Quay can be used by specifying the `hostname` input parameter with the hostname of the Quay instance. In addition, a TLS certificate that is not trusted by GitHub can be provided as a base64-encoded string using the `tls-certificate-base64` input parameter. The following shows how to utilize a private instance of Red Hat Quay along with the associated TLS certificate stored as a base64-encoded value within a GitHub Actions secret.
 
 ```yaml
       - uses: org/quay-oidc-auth-action@v1
@@ -48,7 +48,7 @@ A private instance of Red Hat Quay can be used by specifying the `hostname` inpu
         with:
           hostname: quay.example.com
           username: myorg+cicd_robot
-          tls-certificate: ${{ secrets.QUAY_CA_CERT }}
+          tls-certificate-base64: ${{ secrets.QUAY_CA_CERT_BASE64 }}
 ```
 
 ### Disable SSL Verification
@@ -71,7 +71,7 @@ Instead of specifying the TLS certificate, SSL verification can be disabled by s
 | `hostname` | No | `quay.io` | Quay server hostname |
 | `username` | **Yes** | — | Robot account name (e.g., `org+robot_name`) |
 | `protocol` | No | `https` | Protocol (`http` or `https`) |
-| `tls-certificate` | No | — | Custom CA certificate in PEM format |
+| `tls-certificate-base64` | No | — | Base64-encoded custom CA certificate in PEM format |
 | `verify-ssl` | No | `true` | Whether to verify SSL certificates |
 
 ## Outputs
