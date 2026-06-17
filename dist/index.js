@@ -25690,8 +25690,12 @@ async function run() {
         const hostname = core.getInput('hostname');
         const username = core.getInput('username', { required: true });
         const protocol = core.getInput('protocol');
-        const tlsCertificate = core.getInput('tls-certificate');
+        const tlsCertificateBase64 = core.getInput('tls-certificate-base64');
         const verifySsl = core.getBooleanInput('verify-ssl');
+        let tlsCertificate;
+        if (tlsCertificateBase64) {
+            tlsCertificate = Buffer.from(tlsCertificateBase64, 'base64').toString('utf8');
+        }
         core.info('Requesting OIDC token from GitHub...');
         const oidcToken = await core.getIDToken();
         core.info(`Exchanging OIDC token with Quay at ${hostname}...`);
@@ -25700,7 +25704,7 @@ async function run() {
             username,
             protocol,
             oidcToken,
-            tlsCertificate: tlsCertificate || undefined,
+            tlsCertificate,
             verifySsl
         });
         core.setSecret(result.token);
@@ -25766,9 +25770,8 @@ exports.getTokenExpiration = getTokenExpiration;
 exports.exchangeToken = exchangeToken;
 const http_client_1 = __nccwpck_require__(4844);
 const auth_1 = __nccwpck_require__(4552);
-const fs = __importStar(__nccwpck_require__(9896));
-const os = __importStar(__nccwpck_require__(857));
-const path = __importStar(__nccwpck_require__(6928));
+const https = __importStar(__nccwpck_require__(5692));
+const tls = __importStar(__nccwpck_require__(4756));
 function getTokenExpiration(token) {
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -25782,44 +25785,32 @@ function getTokenExpiration(token) {
     return new Date(claims.exp * 1000).toISOString();
 }
 async function exchangeToken(options) {
-    let certFile;
-    try {
-        if (options.tlsCertificate) {
-            certFile = path.join(os.tmpdir(), `quay-ca-${Date.now()}.pem`);
-            fs.writeFileSync(certFile, options.tlsCertificate);
-            process.env.NODE_EXTRA_CA_CERTS = certFile;
-        }
-        const requestOptions = {};
-        if (!options.verifySsl) {
-            requestOptions.ignoreSslError = true;
-        }
-        const credHandler = new auth_1.BasicCredentialHandler(options.username, options.oidcToken);
-        const client = new http_client_1.HttpClient('quay-oidc-auth-action', [credHandler], requestOptions);
-        const url = `${options.protocol}://${options.hostname}/oauth2/federation/robot/token`;
-        const response = await client.getJson(url);
-        if (response.statusCode !== 200) {
-            throw new Error(`Quay returned HTTP ${response.statusCode}. Verify that the robot account "${options.username}" has OIDC federation configured for GitHub Actions.`);
-        }
-        if (!response.result?.token) {
-            throw new Error('Unexpected response from Quay: missing token field');
-        }
-        const expiration = getTokenExpiration(response.result.token);
-        return {
-            token: response.result.token,
-            expiration
+    const requestOptions = {};
+    if (!options.verifySsl) {
+        requestOptions.ignoreSslError = true;
+    }
+    const credHandler = new auth_1.BasicCredentialHandler(options.username, options.oidcToken);
+    const client = new http_client_1.HttpClient('quay-oidc-auth-action', [credHandler], requestOptions);
+    if (options.tlsCertificate) {
+        const agentOptions = {
+            ca: [...tls.rootCertificates, options.tlsCertificate],
+            rejectUnauthorized: options.verifySsl
         };
+        client._agent = new https.Agent(agentOptions);
     }
-    finally {
-        if (certFile) {
-            try {
-                fs.unlinkSync(certFile);
-            }
-            catch {
-                // best-effort cleanup
-            }
-            delete process.env.NODE_EXTRA_CA_CERTS;
-        }
+    const url = `${options.protocol}://${options.hostname}/oauth2/federation/robot/token`;
+    const response = await client.getJson(url);
+    if (response.statusCode !== 200) {
+        throw new Error(`Quay returned HTTP ${response.statusCode}. Verify that the robot account "${options.username}" has OIDC federation configured for GitHub Actions.`);
     }
+    if (!response.result?.token) {
+        throw new Error('Unexpected response from Quay: missing token field');
+    }
+    const expiration = getTokenExpiration(response.result.token);
+    return {
+        token: response.result.token,
+        expiration
+    };
 }
 
 
