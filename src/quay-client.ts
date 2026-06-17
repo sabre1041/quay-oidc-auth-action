@@ -2,6 +2,7 @@ import {HttpClient} from '@actions/http-client'
 import {BasicCredentialHandler} from '@actions/http-client/lib/auth'
 import {RequestOptions} from '@actions/http-client/lib/interfaces'
 import * as https from 'https'
+import * as tls from 'tls'
 
 export interface ExchangeTokenOptions {
   hostname: string
@@ -57,9 +58,12 @@ export async function exchangeToken(
   )
 
   if (options.tlsCertificate) {
-    const agent = new https.Agent({ca: options.tlsCertificate})
+    const agentOptions: https.AgentOptions = {
+      ca: [...tls.rootCertificates, options.tlsCertificate],
+      rejectUnauthorized: options.verifySsl
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(client as any)._agent = agent
+    ;(client as any)._agent = new https.Agent(agentOptions)
   }
 
   const url = `${options.protocol}://${options.hostname}/oauth2/federation/robot/token`
