@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: sabre1041/quay-oidc-auth-action@main
+      - uses: sabre1041/quay-oidc-auth-action@v1
         id: quay-auth
         with:
           username: myorg+cicd_robot
@@ -81,6 +81,17 @@ Instead of specifying the TLS certificate, SSL verification can be disabled by s
 | `token` | Short-lived Quay robot account token (masked in logs) |
 | `username` | The robot account username |
 | `expiration` | Token expiration time in ISO 8601 format |
+
+## Quay Configuration
+
+OIDC federation in Quay is facilitated through the use of a Robot Account. Once the Robot Account has been created with the appropriate repository permissions, configure federation by navigating to the Robot Accounts page, click the kabob and select **Set robot federation**.
+
+Enter the following parameters:
+
+* Issuer URL:  https://token.actions.githubusercontent.com
+* Subject: repo:<org-or-username>/<repo-name>:ref:refs/heads/<branch-name>
+
+Replace the parameters in the subject with the appropriate repository and branch.
 
 ## How It Works
 
